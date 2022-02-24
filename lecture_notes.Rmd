@@ -1,0 +1,98 @@
+---
+title: "World Unemployment"
+Author: "Ruiman Zhong"
+date: "Feb 2022"
+output: flexdashboard::flex_dashboard
+---
+
+```{r include=FALSE}
+library(ggplot2)
+library(leaflet)
+library(rnaturalearth)
+library(rgeoboundaries)
+library(sp)
+library(plotly)
+map <- ne_countries()
+names(map)[names(map) == "iso_a3"] <- "ISO3"
+names(map)[names(map) == "name"] <- "NAME"
+
+library(wbstats)
+indicators <- wbsearch(pattern = "unemployment")
+
+d_total <- wb(
+  indicator = "SL.UEM.TOTL.ZS",
+  startdate = 2020, enddate = 2020
+)
+d_female =  wb(
+  indicator = "SL.UEM.TOTL.FE.ZS",
+  startdate = 2020, enddate = 2020
+)
+
+map$unem_total =  d_total[match(map$ISO3, d_total$iso3c), "value"]
+
+unem_ten_year <- read.csv("~/Documents/Courses/sem2/pro/unem_ten_year.csv")
+unem = ts(unem_ten_year$percent, start = 2010, end = 2020)
+
+unem_region <- read.csv("~/Documents/Courses/sem2/pro/unem_region.csv")
+
+```
+
+Column {data-width=700}
+-------------------------------------
+    
+### Global Unemployment Rate (of total labor force) in 2020
+    
+```{r}
+
+pal <- colorBin(
+  palette = "viridis", domain = map$unem_total,
+  bins = seq(0, max(map$unem_total, na.rm = TRUE) + 5, by = 5)
+)
+
+
+map$labels <- paste0(
+  "<strong> Country: </strong> ",
+  map$NAME, "<br/> ",
+  "<strong> Unemployment (%): </strong> ",
+  map$unem_total, "<br/> "
+) %>%
+  lapply(htmltools::HTML)
+
+leaflet(map) %>%
+  addTiles() %>%
+  setView(lng = 0, lat = 30, zoom = 2) %>%
+  addPolygons(
+    fillColor = ~ pal(unem_total),
+    color = "white",
+    fillOpacity = 0.7,
+    label = ~labels,
+    highlight = highlightOptions(
+      color = "black",
+      bringToFront = TRUE
+    )
+  ) %>%
+  leaflet::addLegend(
+    pal = pal, values = ~unem_total,
+    opacity = 0.7, title = "Unemployment Total"
+  )
+```
+   
+Column {data-width=500}
+-------------------------------------
+   
+### Global Uemployment Rate
+
+```{r}
+library(dygraphs)
+dygraph(unem, main = "Global Uemployment Rate") %>% 
+  dyRangeSelector(dateWindow = c("2010-01-01", "2020-01-01"))
+```   
+ 
+### Unemployment Rate in Regions
+    
+```{r}
+p = ggplot(unem_region,aes(Region,Rate))+geom_bar(stat="identity")+theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+ggplotly(p)
+```
